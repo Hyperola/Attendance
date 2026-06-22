@@ -1,12 +1,22 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import sqlite3
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 app.secret_key = 'nigerian_school_attendance_key'
 
+def get_db_connection():
+    # If running on Vercel, use a temporary in-memory database to prevent read-only disk crashes
+    if os.environ.get('VERCEL'):
+        conn = sqlite3.connect(':memory:')
+    else:
+        conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def init_db():
-    conn = sqlite3.connect('database.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # 1. Users Table (For Teachers/Principals)
@@ -17,7 +27,7 @@ def init_db():
         role TEXT NOT NULL
     )''')
     
-    # 2. Students Table (Using Nigerian Secondary School Parameters)
+    # 2. Students Table
     cursor.execute('''CREATE TABLE IF NOT EXISTS Students (
         admission_no TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -38,7 +48,7 @@ def init_db():
     # Seed Portal Administrator User Account
     cursor.execute("INSERT OR IGNORE INTO Users (username, password, role) VALUES ('teacher', 'school123', 'Form Teacher')")
     
-    # Wipe old conflicting configurations to prevent SQLite runtime exceptions
+    # Wipe/Reset to ensure fresh student seeds load cleanly
     cursor.execute("DELETE FROM Students")
     
     # Population of 20 Nigerian Secondary School Student Profiles
@@ -67,12 +77,22 @@ def init_db():
     cursor.executemany("INSERT OR IGNORE INTO Students VALUES (?, ?, ?, ?)", large_student_batch)
         
     conn.commit()
+    
+    # If using in-memory, we return the connection so it stays active during boot initialization
+    if os.environ.get('VERCEL'):
+        return conn
     conn.close()
 
+# Hold database reference for in-memory Vercel instances
+memory_db_holder = None
+if os.environ.get('VERCEL'):
+    memory_db_holder = init_db()
+
 def get_db():
-    conn = sqlite3.connect('database.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+    if os.environ.get('VERCEL'):
+        # Re-use our active in-memory reference
+        return memory_db_holder
+    return get_db_connection()
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -81,7 +101,8 @@ def login():
         password = request.form['password']
         conn = get_db()
         user = conn.execute('SELECT * FROM Users WHERE username = ? AND password = ?', (username, password)).fetchone()
-        conn.close()
+        if not os.environ.get('VERCEL'):
+            conn.close()
         if user:
             session['user'] = user['username']
             return redirect(url_for('dashboard'))
@@ -99,7 +120,6 @@ def dashboard():
     if request.method == 'POST':
         action = request.form.get('action')
         
-        # Action Handler: Student Enrollment 
         if action == 'register':
             adm_no = request.form['admission_no']
             name = request.form['name']
@@ -107,12 +127,11 @@ def dashboard():
             f_id = request.form['fingerprint_id']
             try:
                 conn.execute('INSERT INTO Students VALUES (?, ?, ?, ?)', (adm_no, name, class_arm, f_id))
-                conn.commit()
+                if not os.environ.get('VERCEL'): conn.commit()
                 flash(f'Student {name} successfully added to register.', 'success')
             except sqlite3.IntegrityError:
                 flash('Error: Admission Number or Fingerprint ID already exists!', 'danger')
                 
-        # Action Handler: Biometric Attendance Verification Match Check
         elif action == 'attend':
             f_id = request.form['scanned_fingerprint_id']
             student = conn.execute('SELECT * FROM Students WHERE fingerprint_id = ?', (f_id,)).fetchone()
@@ -127,19 +146,19 @@ def dashboard():
                 if not already_marked:
                     conn.execute('INSERT INTO Attendance (admission_no, date, time, status) VALUES (?, ?, ?, ?)',
                                  (student['admission_no'], date_str, time_str, 'Present'))
-                    conn.commit()
+                    if not os.environ.get('VERCEL'): conn.commit()
                     flash(f'Biometric Match Confirmed! {student["name"]} marked PRESENT.', 'success')
                 else:
                     flash(f'{student["name"]} is already marked present for today.', 'warning')
             else:
                 flash('Biometric Match Failed: Fingerprint unverified!', 'danger')
 
-    # Query operational dataset boundaries
     students_list = conn.execute('SELECT * FROM Students ORDER BY name ASC').fetchall()
     date_today = datetime.now().strftime("%Y-%m-%d")
     present_today = [row['admission_no'] for row in conn.execute('SELECT admission_no FROM Attendance WHERE date = ?', (date_today,)).fetchall()]
     
-    conn.close()
+    if not os.environ.get('VERCEL'):
+        conn.close()
     return render_template('dashboard.html', students=students_list, present_today=present_today)
 
 @app.route('/report')
@@ -150,14 +169,10 @@ def report():
     conn = get_db()
     date_today = datetime.now().strftime("%Y-%m-%d")
     
-    # 1. Pull total student parameters
     all_students = conn.execute('SELECT * FROM Students ORDER BY name ASC').fetchall()
-    
-    # 2. Extract present log records mapping keys
     attendance_today = conn.execute('SELECT * FROM Attendance WHERE date = ?', (date_today,)).fetchall()
     present_map = {row['admission_no']: row['time'] for row in attendance_today}
     
-    # 3. Process structural output ledger array for complete cross-section print logs
     full_report_ledger = []
     for student in all_students:
         adm_no = student['admission_no']
@@ -177,7 +192,8 @@ def report():
             'status': status
         })
         
-    conn.close()
+    if not os.environ.get('VERCEL'):
+        conn.close()
     return render_template('report.html', logs=full_report_ledger, date_today=date_today)
 
 @app.route('/logout')
@@ -185,9 +201,6 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# Serverless Routing & Initialization Core Logic
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
-else:
-    init_db()
