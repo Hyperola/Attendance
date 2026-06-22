@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <title>Daily Class Register Portal</title>
+    <style>
+        .bg-school-green { background-color: #1E5631 !important; }
+        .btn-orange { background-color: #E25822; color: white; font-weight: 600; border: none; }
+        .btn-orange:hover { background-color: #C0390B; color: white; }
+        
+        .register-table th { background-color: #1E5631; color: white; }
+        .badge-present { background-color: #2E7D32; color: white; padding: 6px 12px; }
+        .badge-absent { background-color: #C62828; color: white; padding: 6px 12px; }
+        
+        /* Fingerprint Scan Visual Animation */
+        .fingerprint-icon {
+            font-size: 5rem;
+            color: #E25822;
+            animation: scanAnimation 1.5s infinite ease-in-out;
+        }
+        @keyframes scanAnimation {
+            0% { opacity: 0.4; transform: scale(0.96); }
+            50% { opacity: 1; color: #2E7D32; transform: scale(1.02); }
+            100% { opacity: 0.4; transform: scale(0.96); }
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-school-green shadow-sm mb-4">
+        <div class="container">
+            <span class="navbar-brand fw-bold"><i class="bi bi-fingerprint"></i> BIOMETRIC ATTENDANCE PORTAL</span>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-light fw-bold" data-bs-toggle="modal" data-bs-target="#enrollModal">Enroll New Student</button>
+                <a href="/report" class="btn btn-sm btn-outline-light font-weight-bold">📋 View & Print Reports</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mb-5">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                    <div class="alert alert-{{cat}} alert-dismissible fade show shadow-sm text-center fw-bold" role="alert">
+                        {{ msg }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card p-3 mb-4 border-0 shadow-sm d-flex flex-sm-row justify-content-between align-items-center bg-white">
+            <div>
+                <h4 class="fw-bold m-0 text-dark">Morning Attendance Register</h4>
+                <small class="text-muted">Total Enrolled Node Index: <strong>{{ students|length }} Students</strong></small>
+            </div>
+            <a href="/report" class="btn btn-orange font-weight-bold"><i class="bi bi-file-earmark-pdf"></i> Generate Attendance Report</a>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0 register-table">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Admission No.</th>
+                            <th>Student Full Name</th>
+                            <th>Class / Arm</th>
+                            <th class="text-center">Status</th>
+                            <th class="pe-4 text-end">Biometric Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td class="ps-4 font-monospace text-secondary">{{ student.admission_no }}</td>
+                            <td class="fw-bold text-dark">{{ student.name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ student.class_arm }}</span></td>
+                            <td class="text-center">
+                                {% if student.admission_no in present_today %}
+                                    <span class="badge rounded-1 badge-present"><i class="bi bi-check2-circle"></i> PRESENT</span>
+                                {% else %}
+                                    <span class="badge rounded-1 badge-absent"><i class="bi bi-x-circle"></i> ABSENT</span>
+                                {% endif %}
+                            </td>
+                            <td class="pe-4 text-end">
+                                {% if student.admission_no in present_today %}
+                                    <button class="btn btn-sm btn-outline-secondary opacity-50" disabled><i class="bi bi-shield-check"></i> Verified</button>
+                                {% else %}
+                                    <button class="btn btn-sm btn-orange px-3 fw-bold rounded-1" 
+                                            onclick="triggerBiometricScan('{{ student.name }}', '{{ student.fingerprint_id }}')">
+                                        <i class="bi bi-fingerprint"></i> Scan Thumb
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="biometricModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content text-center">
+                <div class="modal-header bg-dark text-white justify-content-center">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-cpu"></i> BIOMETRIC HARDWARE SCANNER</h6>
+                </div>
+                <div class="modal-body py-4">
+                    <p class="mb-1 text-muted small">Instructing Student:</p>
+                    <h6 class="fw-bold text-dark mb-4" id="scan-student-name">Student Name</h6>
+                    
+                    <div class="mb-4">
+                        <i class="bi bi-fingerprint fingerprint-icon"></i>
+                    </div>
+                    
+                    <p class="text-secondary small fw-bold">Placing Fingerprint on USB Scanner device...</p>
+                    
+                    <form method="POST" action="/dashboard" id="biometricForm">
+                        <input type="hidden" name="action" value="attend">
+                        <input type="hidden" name="scanned_fingerprint_id" id="scan-fingerprint-id">
+                        <button type="submit" class="btn btn-sm btn-success w-100 mt-2">Simulate Match Verification Match</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="enrollModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-school-green text-white">
+                    <h5 class="modal-title fw-bold">Enroll New Student</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="/dashboard">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="register">
+                        <div class="mb-3"><label class="form-label small fw-bold">Admission Number</label><input type="text" name="admission_no" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label small fw-bold">Full Student Name</label><input type="text" name="name" class="form-control" required></div>
+                        <div class="mb-3"><label class="form-label small fw-bold">Class & Arm</label><input type="text" name="class_arm" class="form-control" placeholder="e.g. JSS 1 Gold" required></div>
+                        <div class="mb-3"><label class="form-label small fw-bold">Scanner Fingerprint Assignment ID</label><input type="text" name="fingerprint_id" class="form-control" placeholder="e.g. FP-050" required></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-sm btn-orange px-4">Enroll Profile</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const bioModal = new bootstrap.Modal(document.getElementById('biometricModal'));
+        function triggerBiometricScan(name, fpId) {
+            document.getElementById('scan-student-name').innerText = name;
+            document.getElementById('scan-fingerprint-id').value = fpId;
+            bioModal.show();
+            
+            // Simulates an automated scan processing delay
+            setTimeout(() => {
+                document.getElementById('biometricForm').submit();
+            }, 1200);
+        }
+    </script>
+</body>
+</html>

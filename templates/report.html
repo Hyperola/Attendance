@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <title>Comprehensive School Attendance Ledger</title>
+    <style>
+        .bg-school-green { background-color: #1E5631 !important; }
+        .text-school-orange { color: #E25822 !important; }
+        
+        .badge-present { background-color: #2E7D32; color: white; padding: 5px 10px; font-weight: bold; }
+        .badge-absent { background-color: #E25822; color: white; padding: 5px 10px; font-weight: bold; }
+        
+        /* Specialized layout rules for clean PDF/Printer rendering */
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white; padding: 0; color: black; }
+            .card { border: none !important; box-shadow: none !important; }
+            .table th { background-color: #1E5631 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .badge-present { border: 1px solid #2E7D32 !important; color: #2E7D32 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .badge-absent { border: 1px solid #E25822 !important; color: #E25822 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body class="bg-light p-4">
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+            <div>
+                <h4 class="fw-bold m-0 text-dark"><i class="bi bi-file-earmark-ruled"></i> Master Term Attendance Report</h4>
+                <small class="text-muted">Displays both active present responses and absent gaps</small>
+            </div>
+            <div>
+                <a href="/dashboard" class="btn btn-sm btn-secondary me-2"><i class="bi bi-arrow-left"></i> Open Register</a>
+                <button onclick="window.print()" class="btn btn-sm btn-success bg-school-green fw-bold">
+                    <i class="bi bi-filetype-pdf"></i> Download Report / Save PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="text-center mb-4 d-none d-print-block">
+            <h3 class="fw-bold m-0" style="color: #1E5631;">DAILY ATTENDANCE REGISTER RECORD SHEET</h3>
+            <p class="text-muted border-bottom pb-3 m-0 small">
+                Report Date: <strong>{{ date_today }}</strong> &bull; Academic Term: 3rd Term Ledger &bull; Session: 2025/2026
+            </p>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="ps-4 py-3">S/N</th>
+                            <th>Student Full Name</th>
+                            <th>Admission Number</th>
+                            <th>Assigned Class Room</th>
+                            <th>Log Date</th>
+                            <th>Verification Timestamp</th>
+                            <th class="pe-4 text-end">Attendance Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in logs %}
+                        <tr>
+                            <td class="ps-4 text-muted small">{{ loop.index }}</td>
+                            <td class="fw-bold text-dark">{{ student.name }}</td>
+                            <td class="font-monospace text-secondary">{{ student.admission_no }}</td>
+                            <td>{{ student.class_arm }}</td>
+                            <td>{{ student.date }}</td>
+                            <td class="font-monospace">{{ student.time }}</td>
+                            <td class="pe-4 text-end">
+                                {% if student.status == 'Present' %}
+                                    <span class="badge rounded-1 badge-present">✓ PRESENT</span>
+                                {% else %}
+                                    <span class="badge rounded-1 badge-absent">✗ ABSENT</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row mt-5 pt-4 d-none d-print-block">
+            <div class="col-6">
+                <div class="border-top border-dark pt-2 text-center small text-uppercase">Form Teacher Signature / Date</div>
+            </div>
+            <div class="col-6 ms-auto">
+                <div class="border-top border-dark pt-2 text-center small text-uppercase">Principal Endorsement Stamp</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
