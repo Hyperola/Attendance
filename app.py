@@ -185,6 +185,9 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# Serverless Routing & Initialization Core Logic
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
+else:
+    init_db()
